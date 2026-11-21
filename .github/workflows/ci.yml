@@ -1,0 +1,76 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least privilege: nothing in CI writes to the repo or needs cloud credentials.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-packages --locked # fails if uv.lock drifted from pyproject.toml
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy shared/src
+      - run: uv run pytest
+
+  secrets:
+    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # scan the full history, not just the latest commit
+      - name: Install gitleaks (pinned)
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          ./gitleaks version
+      - name: Scan history
+        run: ./gitleaks git --redact --verbose --exit-code 1 .
+
+  terraform:
+    runs-on: ubuntu-latest
+    env:
+      TFLINT_VERSION: "v0.66.0"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.17.1"
+          terraform_wrapper: false
+      - run: terraform fmt -check -recursive infra/terraform
+      - name: Validate root modules (no backend, no credentials)
+        run: |
+          for d in infra/terraform/live/*/; do
+            echo "==> $d"
+            terraform -chdir="$d" init -backend=false -input=false
+            terraform -chdir="$d" validate
+          done
+      - uses: terraform-linters/setup-tflint@v6
+        with:
+          tflint_version: ${{ env.TFLINT_VERSION }}
+      - name: tflint
+        working-directory: infra/terraform
+        run: |
+          tflint --init
+          tflint --recursive --config "$PWD/.tflint.hcl"
+      - uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: infra/terraform
+          framework: terraform
+          quiet: true

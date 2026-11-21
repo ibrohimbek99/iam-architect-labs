@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# Secrets and local config: never commit real values
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Terraform (the .terraform.lock.hcl files ARE committed)
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+crash.log
+
+# Private career material lives in a separate private repo. These lines are a backstop.
+career/
+inputs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

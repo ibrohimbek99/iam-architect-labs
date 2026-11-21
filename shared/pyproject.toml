@@ -1,0 +1,13 @@
+[project]
+name = "iam-shared"
+version = "0.1.0"
+description = "Shared helpers for the labs: structured, redacted audit events. JWT validation and config arrive with Lab 01."
+requires-python = ">=3.12"
+dependencies = ["pydantic>=2.7"]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/iam_shared"]
