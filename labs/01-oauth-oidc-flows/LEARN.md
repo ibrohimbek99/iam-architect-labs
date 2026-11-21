@@ -37,6 +37,14 @@ A failure in checks 1–6 gives **401 `invalid_token`**. Missing scopes give **4
 
 Delegation keeps the audit trail honest. Impersonation erases it.
 
+**DPoP (RFC 9449): stolen tokens stop working.** A Bearer token is like cash: whoever holds it can spend it. A DPoP-bound token is like a card that needs a PIN.
+- The client generates a key pair and proves possession on every request with a short-lived signed **proof** bound to the method, the URL and the token (`ath`).
+- The AS puts the key's thumbprint in the token (`cnf.jkt`).
+- The API checks that the proof's key matches the token's thumbprint, that the proof is fresh, and that its `jti` hasn't been seen before.
+- The API must also **refuse a DPoP-bound token sent as plain `Bearer`**. Otherwise an attacker simply downgrades.
+
+DPoP is the cheap alternative to mTLS-bound tokens (RFC 8705) and the natural default for AI agents (Lab 02). Keycloak can *require* it per client (`dpop.bound.access.tokens`): with that set, a token request without a proof gets 400.
+
 ## Keycloak behaviors worth knowing
 Verified against Keycloak 26.8.2 and pinned by tests in [`tests/integration/`](tests/integration/).
 
@@ -89,7 +97,24 @@ Verified against Keycloak 26.8.2 and pinned by tests in [`tests/integration/`](t
 10. **How would you prevent token exchange from *escalating* privilege?**
     Allow-list which clients may exchange and for which audiences, and require the requester in the subject's `aud`. Enforce downscope-only (in Keycloak, a client-policy executor). Prefer delegation so `act` is auditable. Keep exchanged tokens short-lived and audience-bound. Lab 01 shows Keycloak *permits* upscoping by default, which is exactly why this question matters.
 
+**Bonus: DPoP**
+
+11. **Bearer vs DPoP vs mTLS-bound tokens: when do you use which?**
+    - **Bearer** is fine for short-lived tokens inside a trusted network path.
+    - **mTLS-bound** (RFC 8705) suits server-to-server traffic where you already run a PKI. It's strong but operationally heavy.
+    - **DPoP** gives proof-of-possession at the application layer with no PKI. It's good for public clients, SPAs, mobile apps and AI agents.
+
+    For a bank: DPoP or mTLS for anything that moves money or touches PII, and always reject the downgrade to Bearer.
+12. **What stops a DPoP proof from being replayed?**
+    - `jti` uniqueness, tracked in a cache for the proof's acceptance window
+    - a short `iat` window
+    - `htm`/`htu` binding to one endpoint
+    - `ath` binding to one token
+
+    For tighter control the server can require a server-issued `nonce`.
+
 ## Try it yourself
+- Run `make dpop`, then add `DPoP-Nonce` support: have the API return `use_dpop_nonce` and make the flow retry with the nonce.
 - Set `refreshTokenMaxReuse` to `1` in the realm and watch rotation become weaker.
 - Remove `pkce.code.challenge.method` from `contoso-cli` and see whether `test_public_client_must_use_pkce` still passes.
 - Add the downscope-enforcing client policy and make `test_keycloak_exchange_scopes_are_bounded_by_requester_not_subject` fail, which is the goal.

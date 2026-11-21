@@ -154,6 +154,22 @@
       "optionalClientScopes": ["accounts:read", "gateway:call"]
     },
     {
+      "clientId": "contoso-batch-dpop",
+      "name": "Contoso batch job with DPoP-bound tokens (RFC 9449)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "lab-only-dpop-secret",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "attributes": { "dpop.bound.access.tokens": "true" },
+      "defaultClientScopes": ["basic", "profile"],
+      "optionalClientScopes": ["accounts:read"]
+    },
+    {
       "clientId": "contoso-gateway",
       "name": "Contoso gateway (confidential: standard token exchange)",
       "enabled": true,
@@ -184,6 +200,11 @@
       "username": "service-account-contoso-batch",
       "enabled": true,
       "serviceAccountClientId": "contoso-batch"
+    },
+    {
+      "username": "service-account-contoso-batch-dpop",
+      "enabled": true,
+      "serviceAccountClientId": "contoso-batch-dpop"
     }
   ]
 }
