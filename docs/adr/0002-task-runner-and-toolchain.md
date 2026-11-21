@@ -24,7 +24,7 @@ Option 1. `make test` is the convention reviewers already expect. Recipes stay t
 | Tool | Version | Where it's pinned |
 |---|---|---|
 | Python | 3.12 | `.python-version` |
-| uv | 0.13.9 (local) | `astral-sh/setup-uv@v10` in CI |
+| uv | 0.13.9 (local) | `astral-sh/setup-uv@v10.4.0` in CI (no floating major tag exists) |
 | Terraform | 1.17.1 | `.github/workflows/ci.yml` |
 | tflint | v0.66.0 | CI |
 | gitleaks | v8.30.1 | `.pre-commit-config.yaml` and CI |
