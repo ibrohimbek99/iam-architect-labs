@@ -1,0 +1,23 @@
+meta {
+  name: 4. API /whoami with the exchanged token (expect 200)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{api}}/whoami
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiToken}}
+}
+
+tests {
+  test("accepted; issued to the gateway", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body.client_id).to.equal("contoso-gateway");
+    expect(res.body.aud).to.equal("contoso-accounts-api");
+  });
+}

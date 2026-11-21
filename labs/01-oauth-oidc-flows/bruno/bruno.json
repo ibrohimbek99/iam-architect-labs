@@ -1,0 +1,6 @@
+{
+  "version": "1",
+  "name": "Lab 01 - OAuth OIDC (Contoso)",
+  "type": "collection",
+  "ignore": ["node_modules", ".git"]
+}

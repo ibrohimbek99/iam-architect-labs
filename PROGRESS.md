@@ -5,8 +5,8 @@ Updated at the end of every phase.
 | Phase | Work | Weeks | Status |
 |---|---|---|---|
 | 0 | Setup: questions, tooling | W1 | ✅ Done 2026-11-20 |
-| 1 | Scaffold, CI, Terraform skeleton | W1 | ✅ Done 2026-11-20 (pushed; CI fix on `fix/ci-pin-setup-uv`) |
-| 2 | Lab 01: OAuth 2.x / OIDC flows | W2–W5 · Dec 7 – Jan 3 | Next |
+| 1 | Scaffold, CI, Terraform skeleton | W1 | ✅ Done 2026-11-20 (CI green after PR #1) |
+| 2 | Lab 01: OAuth 2.x / OIDC flows | W2–W5 · Dec 7 – Jan 3 | 🟡 Core done 2026-11-21 · Entra OBO track (W5) and DPoP to go |
 | 3 | Lab 04: NHI, workload identity, secrets | W6–W9 · Jan | Planned |
 | 4 | Lab 02: AI-agent identity + tokens for agents | W10–W14 · Feb – Mar 7 | Planned |
 | 5 | Lab 03: PBAC + JIT | W15, W18–W19 | Planned |
@@ -19,22 +19,35 @@ Updated at the end of every phase.
 
 ## Done
 
+**Phase 2: Lab 01 core (2026-11-21)**
+- `iam_shared.jwt_validation`: a TokenValidator with an algorithm allow-list, a JWKS cache with TTL and rate-limited refresh on unknown `kid`, fail-closed on JWKS outage, `iss`/`aud`/`exp`/`nbf` with 30 s leeway, ID/refresh tokens rejected, and `scope`/`scp` parsing. 21 tests. `iam_shared.testing.FakeIssuer` mints tokens for tests.
+- Contoso Accounts API (FastAPI): 401 vs 403 with RFC 6750 challenges, generic errors to callers, redacted audit event per decision. 8 tests.
+- Keycloak **26.8.2** in `docker-compose.yml` (127.0.0.1 only, health-checked). Contoso realm: public PKCE client, batch (client credentials), gateway (standard token exchange), API audience, 5 client scopes, test user `alice`.
+- Flows: auth code + PKCE (+ `state`/`nonce`/RFC 9207 `iss`), refresh rotation with reuse detection, client credentials, token exchange. Bruno collection (5 requests).
+- Docs: README, LEARN.md (concepts, pitfalls, 10 Q&As), ADR, STRIDE threat model (16 threats mapped to tests), Mermaid diagrams.
+- Results:
+  - `make lint typecheck` green (mypy over 14 files); 39 unit tests pass.
+  - **8/8 integration tests** pass against Keycloak.
+  - Browser login as alice → API 200; reusing the old refresh token → `invalid_grant`.
+  - Bruno CLI: 5/5 requests and tests pass.
+  - pre-commit (including gitleaks) passes.
+
 **Phase 1 (2026-11-20)**
-- Monorepo scaffold: uv workspace, `iam_shared` package, docs (3 ADRs, threat-model and diagram conventions, glossary, zero-trust map), 9 lab placeholders, Makefile.
-- `iam_shared.audit`: structured audit events with central redaction of secrets and JWTs, and RFC 8693 `act`-chain flattening with a depth cap. 7 tests.
-- CI (`.github/workflows/ci.yml`): ruff, mypy, pytest; gitleaks over the full history; Terraform fmt/validate, tflint, checkov. Least-privilege `contents: read`.
-- Terraform skeleton: `infra/terraform/live/plan-only`, with an AWS provider that runs without credentials.
-- Local results: `make check` green (ruff, ruff format, mypy, 7/7 tests, terraform fmt + validate). `make checkov`: 1 passed, 0 failed. `pre-commit validate-config` OK.
+- Monorepo scaffold, `iam_shared.audit`, CI (python, gitleaks, terraform), plan-only Terraform. The first CI run failed only on an unresolvable `setup-uv@v10` tag. That was fixed in PR #1, and all three jobs then passed.
 
 ## Next
-- Merge `fix/ci-pin-setup-uv` once its CI is green.
-- Phase 2: Lab 01. Verify the current Keycloak version and its standard token-exchange support first.
+- Lab 01 / W5: Entra on-behalf-of + app roles vs scopes, in a **personal free Entra tenant** (create it in W4).
+- Lab 01: DPoP. Keycloak supports it fully since 26.4. Add a DPoP-bound client and teach the validator to check `cnf.jkt` plus the proof.
+- Phase 3 (Lab 04, Jan): Vault + Postgres in compose.
 
 ## Blockers
-- **Docker Desktop + WSL2 not installed yet** (needed from Lab 01, W2). This is a manual step: it needs admin rights and a reboot.
-- ~~GitHub CLI login~~: done. ~~Local gitleaks~~: passed at first commit (pre-commit).
+- None. Docker Desktop 29.9.3 on WSL2 is working (2026-11-21).
 
 ## What I learned
-- `astral-sh/setup-uv` doesn't publish floating major tags. `@v10` fails to resolve, so pin `@v10.4.0` (or a SHA). First CI run on `main`: the secrets and terraform jobs passed; the python job failed only on this.
-- On Windows, `uvx checkov` fails because checkov ships a `.cmd` launcher, not an `.exe`. The Makefile switches to `uvx --from checkov checkov.cmd` when `OS=Windows_NT`.
-- An AWS provider with `skip_credentials_validation`, `skip_requesting_account_id` and `skip_metadata_api_check` lets `validate`/`plan` run with no account, which is a cheap guardrail against an accidental apply.
+- **Keycloak token exchange can upscope.** Exchanged scopes are bounded by the *requesting* client, not the subject token. That's pinned by an integration test, and LEARN.md explains why to add a downscope client policy.
+- A Keycloak realm import that lists `clientScopes` replaces the defaults, and **without the `basic` scope tokens have no `sub`**.
+- `from __future__ import annotations` breaks FastAPI dependencies defined inside a factory function: the endpoints returned 422 instead of 401.
+- A `null` scope claim became the scope `"None"` because of string formatting. The validator now ignores non-string scope claims (covered by a test).
+- `astral-sh/setup-uv` doesn't publish floating major tags, so pin the full version.
+- On Windows, checkov ships a `.cmd` launcher, so the Makefile uses `uvx --from checkov checkov.cmd`.
+- An AWS provider with the `skip_*` flags lets `validate`/`plan` run with no account.

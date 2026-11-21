@@ -10,7 +10,7 @@ TF_ROOTS := $(wildcard infra/terraform/live/*/)
 # On Windows, checkov ships as a .cmd launcher rather than an .exe.
 CHECKOV := $(if $(filter Windows_NT,$(OS)),uvx --from checkov checkov.cmd,uvx checkov)
 
-.PHONY: help setup lint fmt typecheck test tf-fmt tf-validate tf-lint checkov scan check up down clean
+.PHONY: help setup lint fmt typecheck test test-integration tf-fmt tf-validate tf-lint checkov scan check up down clean
 
 help: ## List targets
 	@grep -E '^[a-zA-Z0-9_%-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  %-12s %s\n", $$1, $$2}'
@@ -28,11 +28,14 @@ fmt: ## Auto-format Python and Terraform
 	uv run ruff format .
 	terraform fmt -recursive infra/terraform
 
-typecheck: ## mypy (lenient settings in pyproject.toml)
-	uv run mypy shared/src
+typecheck: ## mypy over shared/ and every lab's src/ (settings in pyproject.toml)
+	uv run mypy
 
-test: ## Run all tests
+test: ## Unit tests (no services needed)
 	uv run pytest
+
+test-integration: ## Integration tests against local services (run `make up` first)
+	uv run pytest -m integration
 
 tf-fmt: ## Check Terraform formatting
 	terraform fmt -check -recursive infra/terraform
@@ -57,11 +60,12 @@ scan: ## Secret scan of all tracked files (gitleaks via pre-commit)
 
 check: lint typecheck test tf-fmt tf-validate ## What CI checks (CI also runs gitleaks, tflint, checkov)
 
-up: ## Start local services (docker-compose.yml arrives with Lab 01)
-	@if [ -f docker-compose.yml ]; then docker compose up -d; else echo "No docker-compose.yml yet; it arrives with Lab 01"; fi
+up: ## Start local services (Keycloak) and wait until they are healthy
+	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env from .env.example (local-only lab values)"; fi
+	docker compose up -d --wait
 
 down: ## Stop local services and delete their volumes
-	@if [ -f docker-compose.yml ]; then docker compose down -v; else echo "Nothing to stop"; fi
+	docker compose down -v
 
 lab-%: ## Run one lab, e.g. make lab-01
 	@d=$$(ls -d labs/$*-*/ 2> /dev/null | head -1); \

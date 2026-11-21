@@ -1,9 +1,13 @@
 [project]
 name = "iam-shared"
-version = "0.1.0"
-description = "Shared helpers for the labs: structured, redacted audit events. JWT validation and config arrive with Lab 01."
+version = "0.2.0"
+description = "Shared helpers for the labs: access-token validation, redacted audit events, test-only token minting."
 requires-python = ">=3.12"
-dependencies = ["pydantic>=2.7"]
+dependencies = [
+    "pydantic>=2.7",
+    "pyjwt[crypto]>=2.10",
+    "httpx>=0.27",
+]
 
 [build-system]
 requires = ["hatchling>=1.25"]
