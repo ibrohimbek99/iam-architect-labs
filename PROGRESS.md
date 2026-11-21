@@ -6,7 +6,7 @@ Updated at the end of every phase.
 |---|---|---|---|
 | 0 | Setup: questions, tooling | W1 | ✅ Done 2026-11-20 |
 | 1 | Scaffold, CI, Terraform skeleton | W1 | ✅ Done 2026-11-20 (CI green after PR #1) |
-| 2 | Lab 01: OAuth 2.x / OIDC flows | W2–W5 · Dec 7 – Jan 3 | 🟡 Core done 2026-11-21 · Entra OBO track (W5) and DPoP to go |
+| 2 | Lab 01: OAuth 2.x / OIDC flows | W2–W5 · Dec 7 – Jan 3 | 🟡 Core + DPoP done 2026-11-21 · Entra OBO track (W5) to go |
 | 3 | Lab 04: NHI, workload identity, secrets | W6–W9 · Jan | Planned |
 | 4 | Lab 02: AI-agent identity + tokens for agents | W10–W14 · Feb – Mar 7 | Planned |
 | 5 | Lab 03: PBAC + JIT | W15, W18–W19 | Planned |
@@ -18,6 +18,17 @@ Updated at the end of every phase.
 | — | Lab 06: Zero trust & Shared Signals | optional | Optional |
 
 ## Done
+
+**Phase 2: Lab 01 DPoP (2026-11-21)**
+- `iam_shared.dpop`:
+  - `DpopKey` (in-memory P-256 key that signs proofs)
+  - `DpopVerifier` (`typ`, asymmetric alg, public-only `jwk`, signature, `htm`/`htu`, `iat` window, `jti` replay cache, `ath`, `cnf.jkt`)
+  - RFC 7638 thumbprints
+  - 14 tests, including the RFC 7638 vector
+- API: accepts `Authorization: DPoP` and **rejects DPoP-bound tokens sent as Bearer**, plus missing, replayed or foreign-key proofs. 8 tests.
+- Keycloak client `contoso-batch-dpop` with `dpop.bound.access.tokens=true`: a token request without a proof → 400. With a proof → `token_type=DPoP` + `cnf.jkt`.
+- `make dpop`: legit 200; replay, Bearer downgrade and attacker key all 401.
+- 61 unit + **11/11 integration** tests pass.
 
 **Phase 2: Lab 01 core (2026-11-21)**
 - `iam_shared.jwt_validation`: a TokenValidator with an algorithm allow-list, a JWKS cache with TTL and rate-limited refresh on unknown `kid`, fail-closed on JWKS outage, `iss`/`aud`/`exp`/`nbf` with 30 s leeway, ID/refresh tokens rejected, and `scope`/`scp` parsing. 21 tests. `iam_shared.testing.FakeIssuer` mints tokens for tests.
@@ -37,7 +48,6 @@ Updated at the end of every phase.
 
 ## Next
 - Lab 01 / W5: Entra on-behalf-of + app roles vs scopes, in a **personal free Entra tenant** (create it in W4).
-- Lab 01: DPoP. Keycloak supports it fully since 26.4. Add a DPoP-bound client and teach the validator to check `cnf.jkt` plus the proof.
 - Phase 3 (Lab 04, Jan): Vault + Postgres in compose.
 
 ## Blockers

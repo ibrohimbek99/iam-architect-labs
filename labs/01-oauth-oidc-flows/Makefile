@@ -2,7 +2,7 @@
 SHELL := bash
 .DEFAULT_GOAL := help
 
-.PHONY: help run client-credentials token-exchange login test-integration
+.PHONY: help run client-credentials token-exchange dpop login test-integration
 
 help: ## List targets
 	@grep -E '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  %-20s %s\n", $$1, $$2}'
@@ -15,6 +15,9 @@ client-credentials: ## Flow: client credentials (contoso-batch)
 
 token-exchange: ## Flow: RFC 8693 token exchange (contoso-gateway)
 	uv run python -m lab01.flows.token_exchange
+
+dpop: ## Flow: DPoP-bound tokens (RFC 9449) and the attacks they stop
+	uv run python -m lab01.flows.dpop
 
 login: ## Flow: auth code + PKCE in your browser, then refresh-token rotation
 	uv run python -m lab01.flows.auth_code_pkce

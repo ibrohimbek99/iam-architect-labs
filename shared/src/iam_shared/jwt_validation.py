@@ -153,6 +153,13 @@ class ValidatedToken:
     def actor_chain(self) -> list[str]:
         return actor_chain_from_claims(self.claims)
 
+    @property
+    def confirmation_jkt(self) -> str | None:
+        """``cnf.jkt`` (RFC 9449): set when the token is DPoP-bound to a client key."""
+        cnf = self.claims.get("cnf")
+        jkt = cnf.get("jkt") if isinstance(cnf, Mapping) else None
+        return jkt if isinstance(jkt, str) else None
+
 
 @dataclass
 class TokenValidator:

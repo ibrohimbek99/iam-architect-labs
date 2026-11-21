@@ -11,10 +11,9 @@ runtime, and string annotations would hide the dependencies defined inside creat
 
 import logging
 from collections.abc import Callable
-from typing import Annotated, Any
+from typing import Annotated, Any, NoReturn
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from iam_shared import (
     AuditEvent,
     Decision,
@@ -26,12 +25,13 @@ from iam_shared import (
     http_jwks_fetcher,
     require_scopes,
 )
+from iam_shared.dpop import DPOP_ALGORITHMS, DpopError, DpopVerifier
 from pydantic import BaseModel, Field
 
 from lab01.settings import Settings
 
 audit_log = logging.getLogger("lab01.audit")
-_bearer = HTTPBearer(auto_error=False)
+_DPOP_CHALLENGE = f'DPoP algs="{" ".join(DPOP_ALGORITHMS)}"'
 
 # Fictional data only.
 _ACCOUNTS = {
@@ -61,29 +61,65 @@ def _audit(request: Request, decision: Decision, reason: str, token: ValidatedTo
     audit_log.info(event.to_json_line())
 
 
-def create_app(validator: TokenValidator) -> FastAPI:
-    app = FastAPI(title="Contoso Accounts API (Lab 01)", version="0.1.0")
+def _reject(
+    request: Request, reason: str, challenge: str, detail: str = "invalid token"
+) -> NoReturn:
+    _audit(request, Decision.DENY, reason, None)
+    # Deliberately vague to the caller (RFC 6750 §3.1); the reason is in the audit log.
+    raise HTTPException(status_code=401, detail=detail, headers={"WWW-Authenticate": challenge})
 
-    def authenticate(
-        request: Request,
-        credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
-    ) -> ValidatedToken:
-        if credentials is None:
-            _audit(request, Decision.DENY, "no bearer token", None)
-            raise HTTPException(
-                status_code=401,
+
+def _request_htu(request: Request) -> str:
+    # The URL the client targeted, without query. Behind a reverse proxy, derive this from
+    # trusted forwarding headers instead, or every proof will fail the htu check.
+    return f"{request.url.scheme}://{request.url.netloc}{request.url.path}"
+
+
+def create_app(validator: TokenValidator, dpop: DpopVerifier | None = None) -> FastAPI:
+    app = FastAPI(title="Contoso Accounts API (Lab 01)", version="0.2.0")
+    dpop_verifier = dpop or DpopVerifier()
+
+    def authenticate(request: Request) -> ValidatedToken:
+        header = request.headers.get("authorization", "")
+        scheme, _, raw_token = header.partition(" ")
+        scheme = scheme.lower()
+        if scheme not in ("bearer", "dpop") or not raw_token:
+            _reject(
+                request,
+                "no access token",
+                f'Bearer realm="contoso-accounts-api", {_DPOP_CHALLENGE}',
                 detail="authentication required",
-                headers={"WWW-Authenticate": 'Bearer realm="contoso-accounts-api"'},
             )
         try:
-            token = validator.validate(credentials.credentials)
+            token = validator.validate(raw_token.strip())
         except TokenValidationError as exc:
-            _audit(request, Decision.DENY, str(exc), None)
-            raise HTTPException(
-                status_code=401,
-                detail="invalid token",  # deliberately vague to the caller (RFC 6750 §3.1)
-                headers={"WWW-Authenticate": 'Bearer error="invalid_token"'},
-            ) from exc
+            _reject(request, str(exc), 'Bearer error="invalid_token"')
+
+        jkt = token.confirmation_jkt
+        if jkt is None and scheme == "dpop":
+            _reject(request, "DPoP scheme used with an unbound token", 'DPoP error="invalid_token"')
+        if jkt is not None:
+            # A DPoP-bound token sent as plain Bearer is a downgrade attempt (RFC 9449 §7.1):
+            # whoever is sending it can't prove they hold the key.
+            if scheme != "dpop":
+                _reject(
+                    request, "DPoP-bound token presented as Bearer", 'DPoP error="invalid_token"'
+                )
+            proofs = request.headers.getlist("dpop")
+            if len(proofs) != 1:
+                _reject(
+                    request, "exactly one DPoP proof required", 'DPoP error="invalid_dpop_proof"'
+                )
+            try:
+                dpop_verifier.verify(
+                    proofs[0],
+                    method=request.method,
+                    url=_request_htu(request),
+                    access_token=raw_token.strip(),
+                    expected_jkt=jkt,
+                )
+            except DpopError as exc:
+                _reject(request, f"dpop: {exc}", 'DPoP error="invalid_dpop_proof"')
         request.state.token = token
         return token
 
