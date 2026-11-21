@@ -1,0 +1,22 @@
+meta {
+  name: 5. API /whoami with the ORIGINAL token (expect 401)
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{api}}/whoami
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{subjectToken}}
+}
+
+tests {
+  test("rejected: wrong audience", function() {
+    expect(res.status).to.equal(401);
+    expect(res.headers["www-authenticate"]).to.equal('Bearer error="invalid_token"');
+  });
+}

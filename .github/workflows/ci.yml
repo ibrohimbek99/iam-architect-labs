@@ -24,7 +24,7 @@ jobs:
       - run: uv sync --all-packages --locked # fails if uv.lock drifted from pyproject.toml
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run mypy shared/src
+      - run: uv run mypy # files come from [tool.mypy] in pyproject.toml
       - run: uv run pytest
 
   secrets:

@@ -1,0 +1,36 @@
+meta {
+  name: 3. Token exchange (contoso-gateway → Accounts API)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{keycloak}}/realms/{{realm}}/protocol/openid-connect/token
+  body: formUrlEncoded
+  auth: basic
+}
+
+auth:basic {
+  username: contoso-gateway
+  password: {{gatewaySecret}}
+}
+
+body:form-urlencoded {
+  grant_type: urn:ietf:params:oauth:grant-type:token-exchange
+  subject_token: {{subjectToken}}
+  subject_token_type: urn:ietf:params:oauth:token-type:access_token
+  requested_token_type: urn:ietf:params:oauth:token-type:access_token
+  audience: contoso-accounts-api
+  scope: accounts:read
+}
+
+script:post-response {
+  bru.setVar("apiToken", res.body.access_token);
+}
+
+tests {
+  test("exchange succeeds", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body.access_token).to.be.a("string");
+  });
+}
